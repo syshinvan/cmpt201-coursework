@@ -1,0 +1,86 @@
+#define _GNU_SOURCE
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+enum { HISTORY_CAP = 5 };
+
+typedef struct {
+  char *items[HISTORY_CAP];
+  int count;
+  int head;
+} History;
+
+static void free_history(History *h) {
+  for (int i = 0; i < HISTORY_CAP; ++i) {
+    free(h->items[i]);
+    h->items[i] = NULL;
+  }
+  h->count = 0;
+  h->head = 0;
+}
+
+static void clear_history(History *h) { free_history(h); }
+
+static void push_history(History *h, const char *line) {
+  char *copy = strdup(line);
+  if (!copy) {
+    perror("strdup");
+    exit(1);
+  }
+
+  if (h->count < HISTORY_CAP) {
+    int idx = (h->head + h->count) % HISTORY_CAP;
+    h->items[idx] = copy;
+    h->count++;
+  } else {
+    free(h->items[h->head]);
+    h->items[h->head] = copy;
+    h->head = (h->head + 1) % HISTORY_CAP;
+  }
+}
+
+static void print_history(const History *h) {
+  for (int i = 0; i < h->count; ++i) {
+    int idx = (h->head + i) % HISTORY_CAP;
+    puts(h->items[idx]);
+  }
+}
+
+static void rstrip_newline(char *s) {
+  if (!s)
+    return;
+  size_t n = strlen(s);
+  if (n && s[n - 1] == '\n')
+    s[n - 1] = '\0';
+}
+
+int main(void) {
+  History hist = {.items = {NULL}, .count = 0, .head = 0};
+  char *line = NULL;
+  size_t cap = 0;
+  ssize_t nread;
+
+  while (1) {
+    printf("Enter input: ");
+    fflush(stdout);
+    nread = getline(&line, &cap, stdin);
+    if (nread == -1) {
+      putchar('\n');
+      break;
+    }
+    rstrip_newline(line);
+
+    if (strcmp(line, "print") == 0) {
+      push_history(&hist, "print");
+      print_history(&hist);
+      continue;
+    }
+
+    push_history(&hist, line);
+  }
+  free(line);
+  free_history(&hist);
+  return 0;
+}
